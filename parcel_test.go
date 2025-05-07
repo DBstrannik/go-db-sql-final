@@ -55,9 +55,11 @@ func TestAddGetDelete(t *testing.T) {
 	// Получаем добавленную посылку
 	storedParcel, err := store.Get(id)
 	require.NoError(t, err)
-	require.Equal(t, parcel.Client, storedParcel.Client)
-	require.Equal(t, parcel.Status, storedParcel.Status)
-	require.Equal(t, parcel.Address, storedParcel.Address)
+
+	// Сравниваем структуры целиком
+	expectedParcel := parcel
+	expectedParcel.Number = id
+	require.Equal(t, expectedParcel, storedParcel)
 
 	// Удаляем посылку
 	err = store.Delete(id)
@@ -66,7 +68,7 @@ func TestAddGetDelete(t *testing.T) {
 	// Проверяем, что посылку больше нельзя получить
 	_, err = store.Get(id)
 	require.Error(t, err)
-	require.Equal(t, sql.ErrNoRows, err)
+	require.ErrorIs(t, err, sql.ErrNoRows)
 }
 
 func TestSetAddress(t *testing.T) {
@@ -80,12 +82,12 @@ func TestSetAddress(t *testing.T) {
 	id, err := store.Add(parcel)
 	require.NoError(t, err)
 
-	// Меняем адрес (должно работать, так как статус "registered")
+	// Меняем адрес
 	newAddress := "new test address"
 	err = store.SetAddress(id, newAddress)
 	require.NoError(t, err)
 
-	// Проверяем, что адрес изменился
+	// Проверяем изменение адреса
 	updatedParcel, err := store.Get(id)
 	require.NoError(t, err)
 	require.Equal(t, newAddress, updatedParcel.Address)
@@ -94,13 +96,11 @@ func TestSetAddress(t *testing.T) {
 	err = store.SetStatus(id, ParcelStatusSent)
 	require.NoError(t, err)
 
-	// Пытаемся снова изменить адрес (не должно работать)
-	// Пытаемся снова изменить адрес (не должно работать)
+	// Пытаемся снова изменить адрес
 	err = store.SetAddress(id, "another address")
-	require.Error(t, err) // Теперь ожидаем ошибку, так как статус не "registered"
-	require.Equal(t, sql.ErrNoRows, err)
+	require.ErrorIs(t, err, sql.ErrNoRows)
 
-	// Проверяем, что адрес остался прежним
+	// Проверяем, что адрес не изменился
 	updatedParcel, err = store.Get(id)
 	require.NoError(t, err)
 	require.Equal(t, newAddress, updatedParcel.Address)
@@ -170,13 +170,10 @@ func TestGetByClient(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(parcels), len(storedParcels))
 
-	// Проверяем, что все посылки корректные
+	// Проверяем посылки
 	for _, parcel := range storedParcels {
 		expected, exists := parcelMap[parcel.Number]
 		require.True(t, exists)
-		require.Equal(t, expected.Client, parcel.Client)
-		require.Equal(t, expected.Status, parcel.Status)
-		require.Equal(t, expected.Address, parcel.Address)
-		require.Equal(t, expected.CreatedAt, parcel.CreatedAt)
+		require.Equal(t, expected, parcel)
 	}
 }
